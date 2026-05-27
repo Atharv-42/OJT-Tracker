@@ -22,7 +22,47 @@
   --radius-lg: 18px;
   --shadow:    0 10px 30px rgba(74,54,36,0.12);
   --transition:all 0.2s ease;
+  --header-bg: rgba(246,242,234,0.88);
+  --footer-bg: rgba(255,250,243,0.75);
 }
+
+/* Dark theme variables (applied via `data-theme="dark"` on <html>) */
+[data-theme="dark"] {
+  --bg:        #0b0d10;
+  --surface:   #0f1417;
+  --surface2:  #121417;
+  --border:    rgba(255,255,255,0.04);
+  --accent:    #ffb86b;
+  --accent2:   #ff9f43;
+  --text:      #e6eef6;
+  --text-muted: #9aa6b2;
+  --red:       #ff6b6b;
+  --green:     #4fd1a6;
+  --blue:      #7aa7ff;
+  --orange:    #ff9f43;
+
+  --shadow:    0 8px 20px rgba(0,0,0,0.6);
+  --header-bg: rgba(10,14,18,0.6);
+  --footer-bg: rgba(8,10,12,0.6);
+}
+
+/* Theme toggle button in header */
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: var(--transition);
+}
+
+.theme-toggle:hover { transform: translateY(-2px); }
+
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -46,7 +86,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(246,242,234,0.88);
+  background: var(--header-bg);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
   padding: 0 2rem;
@@ -645,7 +685,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-size: 0.72rem;
   color: var(--text-muted);
   letter-spacing: 0.05em;
-  background: rgba(255,250,243,0.75);
+  background: var(--footer-bg);
 }
 
 /* ── RESPONSIVE ── */
