@@ -1,13 +1,12 @@
 /* ============================================================
-   OJT Progress Tracker — script.js
-   Handles: tasks CRUD, notes, dashboard stats, LocalStorage
-   ============================================================ */
+  OJT Progress Tracker — script.js
+  Handles: tasks CRUD, notes, dashboard stats, API persistence
+  ============================================================ */
 
 "use strict";
 
-// ── STORAGE KEYS ──────────────────────────────────────────────
-const TASKS_KEY = "ojt_tasks";
-const NOTES_KEY = "ojt_notes";
+// ── API / STORAGE KEYS ────────────────────────────────────────
+const API_BASE = "/api";
 const THEME_KEY = "ojt_theme";
 
 // ── STATE ─────────────────────────────────────────────────────
@@ -17,11 +16,6 @@ let activeNoteTab = "learnings";
 let searchQuery = "";
 
 const notes = { learnings: "", feedback: "", errors: "" };
-
-// ── UTILS ─────────────────────────────────────────────────────
-function generateId() {
-  return "_" + Math.random().toString(36).slice(2, 10);
-}
 
 function today() {
   return new Date().toISOString().split("T")[0];
@@ -38,30 +32,54 @@ function isOverdue(dateStr) {
   return dateStr < today();
 }
 
-// ── LOCAL STORAGE ─────────────────────────────────────────────
-function saveTasks() {
-  localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+// ── API HELPERS ───────────────────────────────────────────────
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error || `Request failed with status ${response.status}`);
+  }
+
+  return data;
 }
 
-function loadTasks() {
+async function loadTasks() {
   try {
-    tasks = JSON.parse(localStorage.getItem(TASKS_KEY)) || [];
-  } catch {
+    const savedTasks = await apiRequest("/tasks");
+    tasks = Array.isArray(savedTasks) ? savedTasks : [];
+  } catch (error) {
+    console.error("Failed to load tasks", error);
     tasks = [];
   }
 }
 
-function saveNotes() {
-  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+async function loadNotes() {
+  try {
+    const savedNotes = await apiRequest("/notes");
+    if (savedNotes) Object.assign(notes, savedNotes);
+  } catch (error) {
+    console.error("Failed to load notes", error);
+  }
 }
 
-function loadNotes() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(NOTES_KEY));
-    if (saved) Object.assign(notes, saved);
-  } catch {
-    /* ignore */
-  }
+async function saveNotes() {
+  await apiRequest("/notes", {
+    method: "PUT",
+    body: JSON.stringify(notes),
+  });
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────
@@ -180,37 +198,51 @@ function escapeHtml(str) {
 }
 
 // ── TASK CRUD ─────────────────────────────────────────────────
-function addTask(title, category, dueDate, status) {
-  const task = {
-    id: generateId(),
-    title: title.trim(),
-    category,
-    dueDate,
-    status,
-    createdAt: new Date().toISOString(),
-  };
-  tasks.unshift(task);
-  saveTasks();
-  renderTasks();
-}
-
-function updateTaskStatus(id, newStatus) {
-  const task = tasks.find(t => t.id === id);
-  if (task) {
-    task.status = newStatus;
-    saveTasks();
+async function addTask(title, category, dueDate, status) {
+  try {
+    await apiRequest("/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        title: title.trim(),
+        category,
+        dueDate,
+        status,
+      }),
+    });
+    await loadTasks();
     renderTasks();
+  } catch (error) {
+    console.error("Failed to add task", error);
   }
 }
 
-function deleteTask(id) {
-  tasks = tasks.filter(t => t.id !== id);
-  saveTasks();
-  renderTasks();
+async function updateTaskStatus(id, newStatus) {
+  try {
+    await apiRequest(`/tasks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: newStatus }),
+    });
+    await loadTasks();
+    renderTasks();
+  } catch (error) {
+    console.error("Failed to update task", error);
+  }
+}
+
+async function deleteTask(id) {
+  try {
+    await apiRequest(`/tasks/${id}`, {
+      method: "DELETE",
+    });
+    await loadTasks();
+    renderTasks();
+  } catch (error) {
+    console.error("Failed to delete task", error);
+  }
 }
 
 // ── FORM HANDLING ─────────────────────────────────────────────
-function handleAddTask() {
+async function handleAddTask() {
   const titleEl    = document.getElementById("taskTitle");
   const categoryEl = document.getElementById("taskCategory");
   const dueDateEl  = document.getElementById("taskDueDate");
@@ -224,7 +256,7 @@ function handleAddTask() {
     return;
   }
 
-  addTask(title, categoryEl.value, dueDateEl.value, statusEl.value);
+  await addTask(title, categoryEl.value, dueDateEl.value, statusEl.value);
 
   // Reset form
   titleEl.value   = "";
@@ -259,15 +291,20 @@ function initNotes() {
   const saveBtn = document.getElementById("saveNoteBtn");
   const confirm = document.getElementById("saveConfirm");
 
+  function flashSaved() {
+    confirm.classList.add("show");
+    setTimeout(() => confirm.classList.remove("show"), 2000);
+  }
+
   // Set initial value
   area.value = notes[activeNoteTab] || "";
 
   // Tab switching
   document.querySelectorAll(".notes-tab").forEach(tab => {
-    tab.addEventListener("click", () => {
+    tab.addEventListener("click", async () => {
       // Save current tab before switching
       notes[activeNoteTab] = area.value;
-      saveNotes();
+      await saveNotes();
 
       document.querySelectorAll(".notes-tab").forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
@@ -284,21 +321,19 @@ function initNotes() {
   });
 
   // Save button
-  saveBtn.addEventListener("click", () => {
+  saveBtn.addEventListener("click", async () => {
     notes[activeNoteTab] = area.value;
-    saveNotes();
-    confirm.classList.add("show");
-    setTimeout(() => confirm.classList.remove("show"), 2000);
+    await saveNotes();
+    flashSaved();
   });
 
   // Auto-save on Ctrl+S / Cmd+S
-  area.addEventListener("keydown", e => {
+  area.addEventListener("keydown", async e => {
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
       e.preventDefault();
       notes[activeNoteTab] = area.value;
-      saveNotes();
-      confirm.classList.add("show");
-      setTimeout(() => confirm.classList.remove("show"), 2000);
+      await saveNotes();
+      flashSaved();
     }
   });
 }
@@ -341,9 +376,9 @@ function toggleTheme() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────
-function init() {
-  loadTasks();
-  loadNotes();
+async function init() {
+  await loadTasks();
+  await loadNotes();
   setHeaderDate();
 
   document.getElementById("addTaskBtn").addEventListener("click", handleAddTask);
