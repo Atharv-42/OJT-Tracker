@@ -15,7 +15,7 @@ let activeFilter = "All";
 let activeNoteTab = "learnings";
 let searchQuery = "";
 
-const notes = { learnings: "", feedback: "", errors: "" };
+const notes = { learnings: "", feedback: "", noteErrors: "" };
 
 function today() {
   return new Date().toISOString().split("T")[0];
@@ -314,7 +314,7 @@ function initNotes() {
       const placeholders = {
         learnings: "Write your daily learnings here…",
         feedback:  "Note down mentor feedback, suggestions, or reviews…",
-        errors:    "Log errors, bugs, or issues you encountered today…",
+        noteErrors: "Log errors, bugs, or issues you encountered today…",
       };
       area.placeholder = placeholders[activeNoteTab];
     });

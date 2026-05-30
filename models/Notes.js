@@ -19,10 +19,12 @@ const notesSchema = new mongoose.Schema(
     errors: {
       type: String,
       default: "",
+      alias: "noteErrors",
     },
   },
   {
     timestamps: true,
+    suppressReservedKeysWarning: true,
   }
 );
 

@@ -28,8 +28,21 @@ function normalizeNotes(notesDoc) {
   return {
     learnings: notesDoc.learnings || "",
     feedback: notesDoc.feedback || "",
-    errors: notesDoc.errors || "",
+    noteErrors: notesDoc.errors || notesDoc.noteErrors || "",
   };
+}
+
+async function migrateLegacyNotesFields(notesDoc) {
+  const rawNotesDoc = await Notes.collection.findOne({ _id: notesDoc._id });
+  if (rawNotesDoc?.noteErrors && !rawNotesDoc.errors) {
+    await Notes.collection.updateOne(
+      { _id: notesDoc._id },
+      {
+        $set: { errors: rawNotesDoc.noteErrors },
+        $unset: { noteErrors: "" },
+      }
+    );
+  }
 }
 
 function asyncRoute(handler) {
@@ -123,6 +136,8 @@ app.get(
       { new: true, upsert: true }
     );
 
+    await migrateLegacyNotesFields(notesDoc);
+
     res.json(normalizeNotes(notesDoc));
   })
 );
@@ -130,11 +145,14 @@ app.get(
 app.put(
   "/api/notes",
   asyncRoute(async (req, res) => {
-    const { learnings = "", feedback = "", errors = "" } = req.body;
+    const { learnings = "", feedback = "", noteErrors = "" } = req.body;
 
     const notesDoc = await Notes.findOneAndUpdate(
       { key: "daily-notes" },
-      { key: "daily-notes", learnings, feedback, errors },
+      {
+        $set: { key: "daily-notes", learnings, feedback, errors: noteErrors },
+        $unset: { noteErrors: "" },
+      },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
